@@ -24,6 +24,7 @@
     "smoke:packaged": "node scripts/smoke.mjs --packaged",
     "preview": "vite preview",
     "e2e": "vitest run -c vitest.e2e.config.ts",
+    "screenshots": "vitest run -c vitest.screenshots.config.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

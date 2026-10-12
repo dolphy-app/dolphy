@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::select"],
+  "tags": ["string", "date"],
+  "bloom": "apply",
+  "dok": 2
+}

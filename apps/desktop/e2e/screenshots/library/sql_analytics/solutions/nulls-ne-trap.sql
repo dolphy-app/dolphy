@@ -1,0 +1,1 @@
+SELECT name FROM emp WHERE salary IS NOT 6000;

@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "description": "How the web talks: requests and responses, methods, status codes, headers, caching, and cookies. Short flip cards that build a working mental model of HTTP.",
+  "engine": {
+    "tags": ["http"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "http_essentials",
+  "name": "HTTP Essentials"
+}

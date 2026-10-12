@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "description": "Everyday Git for working developers: staging, commits, branches, remotes, merging, and rebasing — one flashcard at a time.",
+  "engine": {
+    "tags": ["git"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "git_practice",
+  "name": "Git in Practice"
+}

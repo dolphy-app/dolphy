@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::where"],
+  "tags": ["null"],
+  "bloom": "analyze",
+  "dok": 3
+}

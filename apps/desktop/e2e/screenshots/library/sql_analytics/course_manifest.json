@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "description": "Analytical queries in SQLite, from SELECT to joins and aggregation. Every exercise is checked by running your query against a practice database.",
+  "engine": {
+    "requiresChecks": true,
+    "tags": ["sql", "analytics"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "sql_analytics",
+  "name": "SQL Fundamentals"
+}

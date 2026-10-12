@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::nulls"],
+  "tags": ["aggregate"],
+  "bloom": "analyze",
+  "dok": 2
+}

@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "description": "Core modern JavaScript: types, operators, functions and closures, arrays, objects, and asynchronous code with promises and async/await.",
+  "engine": {
+    "tags": ["javascript"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "js_foundations",
+  "name": "JavaScript Foundations"
+}

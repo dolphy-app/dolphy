@@ -5,7 +5,7 @@ extension directory, `dolphy-ext validate` checks a directory with the code the
 app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
 `dolphy-ext lint` checks a project before a pull request,
 `dolphy-ext catalog check|build` checks and builds extensions for the catalog
-(`dolphy-app/dolphy-extensions`, see "Catalog").
+(`dolphy-app/extensions`, see "Catalog").
 
 ## Project layout
 
@@ -279,7 +279,7 @@ running: quit it and run again" and exits with code 1. In the app, `F12`,
 ## Catalog
 
 The `catalog` subcommands serve the extension catalog repository
-(`dolphy-app/dolphy-extensions`; the design and the chain of trust are in the
+(`dolphy-app/extensions`; the design and the chain of trust are in the
 "Установка и каталог" section of `docs/design/extensions.md`). The index format,
 version selection and revocation are handled by `@dolphy-app/extension-catalog`,
 the same code the app uses.
@@ -408,7 +408,7 @@ address (`catalogUrl`) stays the identity of installed extensions. No
   the build and nothing is written. Deprecation is a warning shown by the app,
   not a revocation: the extension can still be installed;
 - `--source-base <url>` — the base of the `source` field (by default the
-  `extensions` tree of `dolphy-app/dolphy-extensions`);
+  `extensions` tree of `dolphy-app/extensions`);
 - `--published-at <iso>` — `publishedAt` of the new versions (now by default).
 
 `catalog build --reindex --out <siteDir>` replaces only `revoked`, `deprecated`

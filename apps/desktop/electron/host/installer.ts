@@ -19,7 +19,7 @@ import type { InstallerOptions } from '@dolphy-app/extension-install';
 
 /** Официальный каталог расширений: статические файлы GitHub Pages репозитория каталога. */
 export const DEFAULT_EXTENSION_CATALOG_URL =
-  'https://dolphy-app.github.io/dolphy-extensions/index.json';
+  'https://dolphy-app.github.io/extensions/index.json';
 
 /** Адрес из окружения годится, если это `http(s)`-URL; иначе он игнорируется (с предупреждением). */
 export const envCatalogUrl = (

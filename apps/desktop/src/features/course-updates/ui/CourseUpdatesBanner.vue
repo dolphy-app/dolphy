@@ -9,7 +9,7 @@ const store = useCourseUpdates();
 
 const courses = (update: CourseUpdate) =>
   update.repository.courseIds.map(store.courseName).join(', ');
-/** Адрес без схемы: `github.com/dolphy-app/dolphy-courses`. */
+/** Адрес без схемы: `github.com/dolphy-app/courses`. */
 const source = ({ repository }: CourseUpdate) =>
   repository.url.replace(/^https?:\/\//, '');
 const percentOf = (id: string) => {

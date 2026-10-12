@@ -89,7 +89,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   name: spec.name ?? spec.id,
   description: `Description of ${spec.id}`,
   author: 'octo-cat',
-  source: 'https://github.com/dolphy-app/dolphy-extensions',
+  source: 'https://github.com/dolphy-app/extensions',
   platforms: spec.platforms ?? [],
   ...(spec.i18n === undefined ? {} : { i18n: spec.i18n }),
   ...(spec.deprecated === undefined ? {} : { deprecated: spec.deprecated }),

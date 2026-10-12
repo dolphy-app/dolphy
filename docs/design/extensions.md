@@ -4,7 +4,7 @@
 
 Расширение может добавлять команды в палитру приложения (Ctrl/⌘+K), панели — собственные экраны с пунктом в боковом меню (компонент Vue, который приложение рисует на своей странице) и инъекции — компоненты, которые окно рисует в любом своём месте (разделы «Команды», «Панели», «Инъекция в окно», [ADR 0008](../adr/0008-extension-commands-and-panels.md)).
 
-Расширения можно ставить из каталога прямо в приложении («Настройки → Расширения → Каталог»): каталог — статический индекс `index.v2.json` и файлы версий на GitHub Pages, исходники и проверки лежат в репозитории `dolphy-app/dolphy-extensions`. Устройство, цепочка доверия и её пределы — раздел «Установка и каталог» и [ADR 0004](../adr/0004-extension-catalog.md).
+Расширения можно ставить из каталога прямо в приложении («Настройки → Расширения → Каталог»): каталог — статический индекс `index.v2.json` и файлы версий на GitHub Pages, исходники и проверки лежат в репозитории `dolphy-app/extensions`. Устройство, цепочка доверия и её пределы — раздел «Установка и каталог» и [ADR 0004](../adr/0004-extension-catalog.md).
 
 Расширение поставляет в каталог не только код, но и таблицы стилей, изображения и шрифты, а в приложении показывается его значок. Панели, виды ответа и рендереры подключают свои ресурсы по адресу относительно модуля, `dolphy-ext://<id>/…` (раздел «Ресурсы расширения» и [ADR 0010](../adr/0010-extension-static-assets.md)).
 
@@ -1831,7 +1831,7 @@ export const client = defineClient((c) => {
       "name": "Значок ACME",
       "description": "Панель со значком и своей таблицей стилей",
       "author": "acme-dev",
-      "source": "https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/acme.badge",
+      "source": "https://github.com/dolphy-app/extensions/tree/main/extensions/acme.badge",
       "platforms": [],
       "versions": [
         {
@@ -1933,7 +1933,7 @@ export const client = defineClient((c) => {
 
 ### Репозиторий каталога и цепочка доверия
 
-Каталог ведёт репозиторий `dolphy-app/dolphy-extensions`:
+Каталог ведёт репозиторий `dolphy-app/extensions`:
 
 | Что                            | Где                                                               |
 | ------------------------------ | ----------------------------------------------------------------- |
@@ -1945,7 +1945,7 @@ export const client = defineClient((c) => {
 | Публикация                     | `.github/workflows/deploy.yml`                                    |
 | Опубликованные файлы и индексы | ветка `gh-pages`: `index.v2.json` и `extensions/<id>/<версия>/…`  |
 
-Индекс приложение читает по адресу `https://dolphy-app.github.io/dolphy-extensions/index.json` (`DEFAULT_EXTENSION_CATALOG_URL` в `apps/desktop/electron/host/installer.ts`); оно запрашивает `index.v2.json` в том же каталоге; `index.json` не читается и не публикуется (ответ 404 — «каталог недоступен»). Репозиторий пока приватный; GitHub Pages на бесплатном плане работает только для публичных, поэтому он должен стать публичным до первой публикации.
+Индекс приложение читает по адресу `https://dolphy-app.github.io/extensions/index.json` (`DEFAULT_EXTENSION_CATALOG_URL` в `apps/desktop/electron/host/installer.ts`); оно запрашивает `index.v2.json` в том же каталоге; `index.json` не читается и не публикуется (ответ 404 — «каталог недоступен»). Репозиторий публичный, Pages включён на ветке `gh-pages`. Репозиторий назывался `dolphy-extensions`: адрес Pages строится по имени репозитория и при переименовании не редиректится, поэтому сборки приложения 0.5–0.7 с прежним адресом `https://dolphy-app.github.io/dolphy-extensions/` получают 404 («каталог недоступен») до обновления; обходной путь — задать новый адрес в «Настройки → Расширения».
 
 Цепочка доверия:
 
@@ -2632,7 +2632,7 @@ pnpm test
 
 1. Проект: `npx --package=@dolphy-app/create-extension create-dolphy-extension acme-hello --id acme.hello` (первый аргумент — каталог, `--id` — id расширения; без него id выводится из имени каталога). Дальше — `pnpm install`, `pnpm dev`, `pnpm test` (раздел «Быстрый старт»).
 2. Метаданные. В `extension.json` добавьте `name` (до 80 символов), `description` (до 500) и `author` — ваш логин GitHub. Повысьте `version` выше уже опубликованной. Проект должен иметь `README.md` (что делает расширение), `package.json` и lock-файл (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` или `bun.lock`), зависимости только из реестра, без `postinstall`, `prepare` и других lifecycle-скриптов.
-3. Форк `dolphy-app/dolphy-extensions` и проект в `extensions/<id>/`; имя каталога равно `id` из манифеста (без `node_modules` и `dist-ext`).
+3. Форк `dolphy-app/extensions` и проект в `extensions/<id>/`; имя каталога равно `id` из манифеста (без `node_modules` и `dist-ext`).
 4. Проверка до PR: `npx dolphy-ext build` и `npx dolphy-ext validate dist-ext/<id>` в проекте, затем в корне форка (после `npm install`: инструменты ставятся из того же реестра) `npx dolphy-ext catalog check extensions --ids <id> --skip-github-check` (`--list-rules` печатает правила). Вывода нет и код 0 — замечаний нет; строки `error`/`warning` — замечания, код 1 при любом `error`. В CI проверка автора через GitHub API включена.
 5. Pull request. CI проверит и пробно соберёт расширение, мейнтейнер проведёт ревью по `rules/rules.json`. После слияния в `main` версия появится в каталоге; опубликованные версии не меняются — для исправления поднимите `version` и откройте новый PR.
 

@@ -177,7 +177,7 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
         name: 'Acme theme',
         description: 'A theme',
         author: 'acme',
-        source: 'https://github.com/dolphy-app/dolphy-extensions',
+        source: 'https://github.com/dolphy-app/extensions',
         platforms: [],
         versions: [
           {

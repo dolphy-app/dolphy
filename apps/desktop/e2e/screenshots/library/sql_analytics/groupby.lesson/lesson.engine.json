@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::aggregate"],
+  "tags": ["group-by"],
+  "bloom": "apply",
+  "dok": 2
+}

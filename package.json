@@ -12,6 +12,7 @@
     "build": "pnpm --filter @dolphy/desktop build",
     "smoke": "pnpm --filter @dolphy/desktop smoke",
     "smoke:packaged": "pnpm --filter @dolphy/desktop smoke:packaged",
+    "screenshots": "pnpm --filter @dolphy/desktop screenshots",
     "create-extension": "pnpm -F @dolphy-app/create-extension create-extension",
     "build:packages": "node tools/build-packages.mjs",
     "verify:packages": "node tools/verify-packages.mjs",

@@ -1370,7 +1370,7 @@ export const useDue = (engine: LearningEngine) => {
 
 ## 14. Что сделано в `apps/desktop`
 
-Список отличий от шаблона выполнен (M-desktop, 2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64); устройство и команды — `apps/desktop/README.md`.
+Список отличий от шаблона выполнен (M-desktop, 2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64); устройство и команды — `apps/desktop/ARCHITECTURE.md`.
 
 - Удалены мост `window.ipcRenderer`, `src/demos/ipc.ts` и обработчик `open-win`; мост — `window.dolphy` (`shared/bridge.ts`).
 - Окно: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `will-navigate` → `preventDefault`, `setWindowOpenHandler` → `deny`; CSP «запретить всё» в `index.html` (в dev — с websocket для HMR).

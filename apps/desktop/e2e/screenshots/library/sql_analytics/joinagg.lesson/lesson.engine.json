@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::outerjoin"],
+  "tags": ["join", "group-by"],
+  "bloom": "analyze",
+  "dok": 3
+}

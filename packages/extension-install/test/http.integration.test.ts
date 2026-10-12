@@ -60,7 +60,7 @@ const entry = (id: string) => ({
   name: id,
   description: `Description of ${id}`,
   author: 'octo-cat',
-  source: 'https://github.com/dolphy-app/dolphy-extensions',
+  source: 'https://github.com/dolphy-app/extensions',
   platforms: [],
   versions: [
     {

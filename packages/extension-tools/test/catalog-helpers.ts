@@ -123,7 +123,7 @@ export const publishedIndex = (
       name: 'Sample',
       description: 'Sample',
       author: 'octo-cat',
-      source: `https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/${id}`,
+      source: `https://github.com/dolphy-app/extensions/tree/main/extensions/${id}`,
       platforms: [],
       versions: versions.map((version) => ({
         version,

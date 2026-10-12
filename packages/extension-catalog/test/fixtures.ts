@@ -22,7 +22,7 @@ export const entry = (overrides: Partial<CatalogEntry> = {}): CatalogEntry => ({
   name: 'Quiz',
   description: 'Вопросы с выбором',
   author: 'octo-cat',
-  source: 'https://github.com/dolphy-app/dolphy-extensions',
+  source: 'https://github.com/dolphy-app/extensions',
   platforms: [],
   versions: [version()],
   ...overrides,

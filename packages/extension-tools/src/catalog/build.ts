@@ -47,7 +47,7 @@ import { changelogProblem } from './rules.ts';
 import { hashTree, readTree } from './tree.ts';
 
 export const DEFAULT_SOURCE_BASE =
-  'https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions';
+  'https://github.com/dolphy-app/extensions/tree/main/extensions';
 
 export interface BuildCatalogOptions {
   /** Directory of projects `<src>/<id>`. */

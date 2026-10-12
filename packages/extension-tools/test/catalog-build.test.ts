@@ -70,7 +70,7 @@ describe('catalog build: publishing a version', () => {
       name: 'Sample',
       description: 'A sample extension for the catalog',
       author: 'octo-cat',
-      source: `https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/${NIGHT}`,
+      source: `https://github.com/dolphy-app/extensions/tree/main/extensions/${NIGHT}`,
       platforms: [],
     });
     const [version] = entry?.versions ?? [];

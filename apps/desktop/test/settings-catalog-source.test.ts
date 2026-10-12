@@ -15,7 +15,7 @@ import {
   flush,
 } from './support/extensions-fakes.ts';
 
-const DEFAULT = 'https://dolphy-app.github.io/dolphy-extensions/index.json';
+const DEFAULT = 'https://dolphy-app.github.io/extensions/index.json';
 const OWN = 'https://own.test/catalog/index.json';
 
 /** Движок с одним адресом: `setCatalogUrl` принимает всё, кроме значений из `reject`. */

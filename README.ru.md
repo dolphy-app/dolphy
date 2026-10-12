@@ -1,3 +1,5 @@
+<img src="apps/desktop/src/shared/assets/logo.svg" width="96" alt="Dolphy logo">
+
 # Dolphy
 
 [English](README.md) · **Русский**

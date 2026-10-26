@@ -73,6 +73,78 @@ export const client = defineClient((c) => {
   it fails the registration. Pair every background with a readable text color.
 - `variables` are optional tokens from `THEME_VARIABLE_KEYS`; here
   `border-opacity`, a number from 0 to 1.
+- `tokens` are optional shape and font values; the keys are `THEME_TOKEN_KEYS`:
+
+  | Key | Value |
+  | --- | --- |
+  | `radius-sm`, `radius-md`, `radius-lg`, `radius-xl` | `0`, or a number up to 9999 with `px`, `rem` or `em` (`0.5rem`) |
+  | `font-family` | a font stack, up to `THEME_LIMITS.fontFamilyLength` characters |
+
+  A key you leave out keeps the value of the app (Vuetify defaults: 2px, 4px,
+  8px and 24px for the radii). The radii drive the `rounded-sm|md|lg|xl`
+  classes and the components whose default radius is `md`; the app's buttons
+  and cards use `lg`. Each token is also a CSS variable `--dolphy-<key>`
+  (`--dolphy-radius-lg`, `--dolphy-font-family`) that your `css` can use.
+- `css` is optional style sheet text, up to `THEME_LIMITS.cssLength`
+  characters. The window adds it only while the theme is selected and removes
+  it at once when the user picks another theme or the extension is removed.
+  It is not scoped and not layered, so a rule beats Vuetify without
+  `!important`; `@font-face`, `@keyframes` and `:root` work. Keep the CSS in a
+  file and import it as text: `import css from './theme.css?inline'`, then
+  `{ ...theme, css }`. For a font, ship the files in `assets/` and write the
+  `@font-face` in the string you pass (not in the CSS file, which the build
+  resolves as files): `src: url('dolphy-ext://<extension id>/assets/fonts/x.woff2')`;
+  `ctx.extensionId` gives the id. A file imported with `?inline` becomes a
+  data URI and makes `client.mjs` big.
+- Heights, density, shadows and the type scale have no token: write them in
+  `css`. The selectors there (`.v-btn`, `.v-field`, `.v-expansion-panel`…) are
+  Vuetify's classes, not Dolphy API, so check them after a Vuetify update.
+
+A shadcn-like fragment: rounder corners, one font and accordion rows with only
+a bottom border.
+
+<!-- fragment -->
+```ts
+import css from './theme.css?inline';
+
+export const shadcn: ThemeRegistration = {
+  // id, label, dark and colors as above
+  tokens: {
+    'radius-sm': '0.375rem',
+    'radius-md': '0.5rem',
+    'radius-lg': '0.625rem',
+    'radius-xl': '0.875rem',
+    'font-family': 'Inter, ui-sans-serif, system-ui, sans-serif',
+  },
+  css,
+};
+```
+
+File `src/theme.css`:
+
+```css
+.v-expansion-panel__shadow {
+  display: none;
+}
+.v-expansion-panel {
+  background: none;
+  box-shadow: none;
+  border-bottom: 1px solid rgb(var(--v-theme-on-surface) / 0.12);
+  border-radius: 0;
+}
+.v-expansion-panel-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding-block: 1rem;
+}
+.v-expansion-panel-title:hover {
+  text-decoration: underline;
+}
+.v-expansion-panel-title__icon .v-icon {
+  font-size: 1rem;
+}
+```
+
 - The build of this project writes `extension.json` and `client.mjs` to
   `dist-ext`: there is no `server` export, so no `main.mjs`.
 

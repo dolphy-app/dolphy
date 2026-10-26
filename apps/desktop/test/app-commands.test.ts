@@ -24,6 +24,8 @@ const theme = (id: string, label: LocalizedText): ClientTheme => ({
   dark: true,
   colors: {},
   variables: {},
+  tokens: {},
+  css: '',
 });
 
 const setup = () => {

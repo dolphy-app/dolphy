@@ -84,6 +84,7 @@ import {
 } from '@/shared/lib/extension-when.ts';
 import { createInjectionMounter } from '@/shared/lib/extension-injections.ts';
 import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
+import { bindThemeStyles } from '@/shared/lib/theme-styles.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
 import './styles/global.css';
@@ -184,6 +185,8 @@ const bootstrap = async () => {
       themeSelection.saved,
       () => clients.themes.value,
     );
+    // токены формы и `css` выбранной темы расширения: стили только пока тема выбрана
+    bindThemeStyles(themeSelection.saved, () => clients.themes.value);
     // цвета подсветки кода следуют за темой: Markdown и редактор ответа
     bindSyntaxPalette(vuetify.theme);
     // условия `when` команд, панелей и виджетов расширений: значения читаются у источников при каждом вычислении

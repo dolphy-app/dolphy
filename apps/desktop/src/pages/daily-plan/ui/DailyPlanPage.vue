@@ -112,50 +112,46 @@ const startSession = () => {
     <v-progress-linear v-if="initialLoading" indeterminate rounded />
 
     <template v-else-if="plan">
-      <v-card
-        v-if="hero"
-        theme="dark"
-        :border="false"
-        rounded="xl"
-        class="hero pa-8 mb-6"
-      >
-        <div class="d-flex flex-wrap align-center justify-space-between ga-8">
-          <div class="hero-text">
-            <v-chip
-              size="small"
-              variant="tonal"
-              :prepend-icon="ITEM_REASON[hero.reason].icon"
-            >
-              {{ t(`reason.${hero.reason}`) }}
-            </v-chip>
-            <h2 class="text-headline-medium font-weight-bold mt-4">
-              {{ hero.title }}
-            </h2>
-            <p class="text-body-large mt-2 opacity-90">{{ hero.origin }}</p>
-            <v-btn
-              class="hero-cta mt-6"
-              size="large"
-              color="hero-contrast"
-              append-icon="mdi-arrow-right"
-              @click="startSession"
-            >
-              {{ t('dailyPlan.hero.start') }}
-            </v-btn>
-          </div>
-          <dl class="d-flex ga-8">
-            <div
-              v-for="item in counts"
-              :key="item.reason"
-              class="d-flex flex-column-reverse align-center"
-            >
-              <dt class="text-label-medium opacity-90">{{ item.label }}</dt>
-              <dd class="text-display-small font-weight-bold ma-0">
-                {{ item.count }}
-              </dd>
+      <div v-if="hero" class="hero-colors mb-6">
+        <v-card theme="dark" :border="false" rounded="xl" class="hero pa-8">
+          <div class="d-flex flex-wrap align-center justify-space-between ga-8">
+            <div class="hero-text">
+              <v-chip
+                size="small"
+                variant="tonal"
+                :prepend-icon="ITEM_REASON[hero.reason].icon"
+              >
+                {{ t(`reason.${hero.reason}`) }}
+              </v-chip>
+              <h2 class="text-headline-medium font-weight-bold mt-4">
+                {{ hero.title }}
+              </h2>
+              <p class="text-body-large mt-2 opacity-90">{{ hero.origin }}</p>
+              <v-btn
+                class="hero-cta mt-6"
+                size="large"
+                color="hero-contrast"
+                append-icon="mdi-arrow-right"
+                @click="startSession"
+              >
+                {{ t('dailyPlan.hero.start') }}
+              </v-btn>
             </div>
-          </dl>
-        </div>
-      </v-card>
+            <dl class="d-flex ga-8">
+              <div
+                v-for="item in counts"
+                :key="item.reason"
+                class="d-flex flex-column-reverse align-center"
+              >
+                <dt class="text-label-medium opacity-90">{{ item.label }}</dt>
+                <dd class="text-display-small font-weight-bold ma-0">
+                  {{ item.count }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </v-card>
+      </div>
 
       <v-card v-else class="pa-4 mb-6">
         <v-empty-state
@@ -266,16 +262,26 @@ const startSession = () => {
   margin-top: 1.5rem;
 }
 
+/* цвета акцентной карточки берутся у выбранной темы (в том числе темы
+   расширения): сама карточка в тёмной теме ради белого текста, поэтому
+   значения читаем в обёртке и передаём вниз переменными */
+.hero-colors {
+  --hero-start: rgb(var(--v-theme-hero-start));
+  --hero-end: rgb(var(--v-theme-hero-end));
+  --hero-contrast: rgb(var(--v-theme-hero-contrast));
+}
+
 .hero {
   background: linear-gradient(
     135deg,
-    rgb(var(--v-theme-hero-start)) 0%,
-    rgb(var(--v-theme-hero-end)) 100%
+    var(--hero-start) 0%,
+    var(--hero-end) 100%
   );
 }
 
 .hero .hero-cta.v-btn {
-  color: rgb(var(--v-theme-hero-start));
+  background-color: var(--hero-contrast);
+  color: var(--hero-start);
 }
 
 .hero-text {

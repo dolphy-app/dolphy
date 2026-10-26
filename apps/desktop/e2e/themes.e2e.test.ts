@@ -10,7 +10,7 @@ const THEME_EXTENSION = fileURLToPath(
   new URL('./fixtures/theme-extension', import.meta.url),
 );
 const MIDNIGHT = 'rgb(16, 24, 32)';
-const BUILTIN_BACKGROUNDS = ['rgb(245, 246, 251)', 'rgb(14, 16, 32)'];
+const BUILTIN_BACKGROUNDS = ['rgb(243, 247, 253)', 'rgb(11, 20, 36)'];
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;

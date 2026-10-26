@@ -101,7 +101,9 @@ export default defineConfig(({ command }) => {
     build: { outDir: out('dist'), emptyOutDir: true },
     plugins: [
       vue(),
-      vuetify(),
+      vuetify({
+        styles: { configFile: 'src/app/styles/vuetify-settings.scss' },
+      }),
       csp(command),
       extensions(out('extensions')),
       electron([

@@ -576,6 +576,38 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
   'disabled-opacity',
 ];
 
+/**
+ * Allowed keys of `ThemeRegistration.tokens`: the scale of corner radii of
+ * Vuetify (`rounded-sm|md|lg|xl` and the components that default to the base
+ * radius) and the font of the window. Each one is also the CSS custom property
+ * `--dolphy-<key>` while the theme is selected, so `ThemeRegistration.css` can
+ * use it.
+ */
+export const THEME_TOKEN_KEYS = [
+  'radius-sm',
+  'radius-md',
+  'radius-lg',
+  'radius-xl',
+  'font-family',
+] as const;
+
+export type ThemeTokenKey = (typeof THEME_TOKEN_KEYS)[number];
+
+/** A length of a radius token: `0` or up to 9999 with `px`, `rem` or `em`. */
+export const THEME_LENGTH_PATTERN =
+  /^(?:0|\d{1,4}(?:\.\d{1,3})?(?:px|rem|em))$/;
+
+/** A font stack: letters, digits, spaces, commas, quotes, `_` and `-`. */
+export const THEME_FONT_FAMILY_PATTERN = /^[\p{L}\p{N} ,'"_-]+$/u;
+
+/** Limits on a theme; the window checks them at registration. */
+export const THEME_LIMITS = Object.freeze({
+  /** Length of `ThemeRegistration.css` in UTF-16 code units. */
+  cssLength: 200_000,
+  /** Length of `tokens['font-family']`. */
+  fontFamilyLength: 200,
+});
+
 const KEYBINDING_MODIFIER =
   '(?:Mod|Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta|Win|Super)\\+';
 const KEYBINDING_KEY =
@@ -1872,6 +1904,17 @@ export interface ThemeRegistration {
   colors: Record<string, string>;
   /** Keys from `THEME_VARIABLE_KEYS`: `border-color` is a color, the rest are numbers 0..1. */
   variables?: Record<string, string | number>;
+  /**
+   * Keys from `THEME_TOKEN_KEYS`: `radius-*` are lengths (`0.5rem`, `6px`),
+   * `font-family` is a font stack. A key that is absent keeps the app value.
+   */
+  tokens?: Partial<Record<ThemeTokenKey, string>>;
+  /**
+   * A style sheet that applies while the theme is selected and overrides
+   * Vuetify without `!important`; up to `THEME_LIMITS.cssLength` characters.
+   * Import a file as text with `import css from './theme.css?inline'`.
+   */
+  css?: string;
 }
 
 /**

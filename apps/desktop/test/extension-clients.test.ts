@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { INJECTION_LIMITS } from '@dolphy-app/extension-api';
+import { INJECTION_LIMITS, THEME_LIMITS } from '@dolphy-app/extension-api';
 import type { ClientContext } from '@dolphy-app/extension-api';
 import {
   clientDto,
@@ -266,6 +266,59 @@ describe('реестр клиентских частей: проверка ре�
         }),
       ),
     ).toContain('#rrggbb');
+  });
+
+  it('тема: токены и css принимаются, чужие ключи, длины, шрифт и размер css отвергаются', async () => {
+    const base = { id: 'acme.a', label: 'T', dark: false, colors: COLORS };
+    const { registry } = createTestClients(
+      {
+        [URL_A]: moduleOf((c) =>
+          c.addTheme({
+            ...base,
+            tokens: {
+              'radius-lg': '0.625rem',
+              'font-family': 'Inter, "SF Pro"',
+            },
+            css: '.v-btn{height:36px}',
+          }),
+        ),
+      },
+      [clientDto('acme.a')],
+    );
+    await flush();
+    expect(registry.themes.value[0]).toMatchObject({
+      tokens: { 'radius-lg': '0.625rem', 'font-family': 'Inter, "SF Pro"' },
+      css: '.v-btn{height:36px}',
+    });
+
+    const tokens = (value: Record<string, string>) =>
+      failing((c) =>
+        c.addTheme({ ...base, tokens: value as Record<string, never> }),
+      );
+    expect(await tokens({ 'radius-huge': '1px' })).toContain('theme.tokens');
+    expect(await tokens({ 'radius-lg': '10 px' })).toContain(
+      'theme.tokens.radius-lg',
+    );
+    expect(await tokens({ 'radius-lg': '1px;color:red' })).toContain(
+      'theme.tokens.radius-lg',
+    );
+    expect(await tokens({ 'radius-sm': '99999px' })).toContain(
+      'theme.tokens.radius-sm',
+    );
+    expect(await tokens({ 'font-family': 'Inter; } body { x:y' })).toContain(
+      'theme.tokens.font-family',
+    );
+    expect(await failing((c) => c.addTheme({ ...base, css: '' }))).toContain(
+      'theme.css',
+    );
+    expect(
+      await failing((c) =>
+        c.addTheme({
+          ...base,
+          css: 'a'.repeat(THEME_LIMITS.cssLength + 1),
+        }),
+      ),
+    ).toContain('theme.css');
   });
 
   it('вставка: цель непустая и не длиннее лимита, позиция из списка, id не повторяется', async () => {

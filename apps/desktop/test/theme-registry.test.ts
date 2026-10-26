@@ -14,6 +14,8 @@ const theme = (id: string, dark = false): ClientTheme => ({
   dark,
   colors: { primary: '#123456' },
   variables: {},
+  tokens: {},
+  css: '',
 });
 
 /** Реестр Vuetify: `change` на неизвестную тему — ошибка, как предупреждение Vuetify. */

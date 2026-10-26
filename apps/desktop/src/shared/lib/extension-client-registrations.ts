@@ -9,6 +9,9 @@ import {
   INJECTION_POSITIONS,
   MARKDOWN_LANGUAGE_PATTERN,
   THEME_COLOR_KEYS,
+  THEME_FONT_FAMILY_PATTERN,
+  THEME_LENGTH_PATTERN,
+  THEME_LIMITS,
   THEME_VARIABLE_KEYS,
   isMountable,
   parseWhen,
@@ -21,6 +24,7 @@ import type {
   ExtensionIconName,
   InjectionPosition,
   LocalizedText,
+  ThemeTokenKey,
   Mountable,
   RegisteredKeybinding,
 } from '@dolphy-app/extension-api';
@@ -85,6 +89,10 @@ export interface ClientTheme {
   dark: boolean;
   colors: Record<string, string>;
   variables: Record<string, string | number>;
+  /** Токены формы (`THEME_TOKEN_KEYS`); отсутствующий ключ оставляет значение приложения. */
+  tokens: Partial<Record<ThemeTokenKey, string>>;
+  /** Стили темы; пустая строка — стилей нет. */
+  css: string;
 }
 
 /** Команда, чей обработчик работает в окне (`addCommand`), с умолчаниями. */
@@ -269,12 +277,35 @@ const themeVariables = z
     'border-color must be a hex color, the others numbers in [0, 1]',
   );
 
+const radiusToken = z
+  .string()
+  .regex(THEME_LENGTH_PATTERN, 'must be 0 or a length in px, rem or em')
+  .optional();
+
+const themeTokens = z.strictObject({
+  'radius-sm': radiusToken,
+  'radius-md': radiusToken,
+  'radius-lg': radiusToken,
+  'radius-xl': radiusToken,
+  'font-family': z
+    .string()
+    .min(1)
+    .max(THEME_LIMITS.fontFamilyLength)
+    .regex(
+      THEME_FONT_FAMILY_PATTERN,
+      'must be a font stack of letters, digits, spaces, commas, quotes, _ and -',
+    )
+    .optional(),
+});
+
 const themeSchema = z.strictObject({
   id: z.string(),
   label: text(titleLength),
   dark: z.boolean(),
   colors: themeColors,
   variables: themeVariables.optional(),
+  tokens: themeTokens.optional(),
+  css: z.string().min(1).max(THEME_LIMITS.cssLength).optional(),
 });
 
 const commandSchema = z.strictObject({
@@ -448,6 +479,8 @@ export const createClientContext = (
         dark: reg.dark,
         colors: reg.colors,
         variables: reg.variables ?? {},
+        tokens: { ...reg.tokens },
+        css: reg.css ?? '',
       });
     },
     addCommand: (raw) => {

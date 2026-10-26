@@ -1,0 +1,47 @@
+// Скругления Vuetify как CSS-переменные темы: `--dolphy-radius-*` задаёт
+// выбранная тема расширения (`tokens`), без неё действуют значения Vuetify
+// (запасное значение в `var()` равно значению по умолчанию Vuetify, вид
+// встроенных тем не меняется). Базовый `$border-radius-root` остаётся числом:
+// на нём Vuetify считает шкалу `$rounded` и другие вычисления Sass. Переменные,
+// которые Vuetify использует в арифметике (`$button-height`), так подключить
+// нельзя: сборка падает.
+//
+// Список `$*-border-radius` — все переменные компонентов Vuetify, равные
+// `$border-radius-root`; тест `vuetify-radius-variables.test.ts` сверяет его с
+// установленным Vuetify и ловит новые.
+$md: var(--dolphy-radius-md, 4px);
+
+@use 'vuetify/settings' with (
+  $rounded: (
+    'sm': var(--dolphy-radius-sm, 2px),
+    null: $md,
+    'md': $md,
+    'lg': var(--dolphy-radius-lg, 8px),
+    'xl': var(--dolphy-radius-xl, 24px),
+  ),
+  $alert-border-radius: $md,
+  $avatar-rounded-border-radius: $md,
+  $banner-rounded-border-radius: $md,
+  $breadcrumbs-rounded-border-radius: $md,
+  $btn-group-border-radius: $md,
+  $button-border-radius: $md,
+  $button-pagination-border-radius: $md,
+  $calendar-event-border-radius: $md,
+  $card-border-radius: $md,
+  $chip-label-border-radius: $md,
+  $dialog-border-radius: $md,
+  $expansion-panel-border-radius: $md,
+  $field-border-radius: $md,
+  $footer-rounded-border-radius: $md,
+  $img-rounded-border-radius: $md,
+  $menu-content-border-radius: $md,
+  $navigation-drawer-rounded-border-radius: $md,
+  $picker-border-radius: $md,
+  $sheet-rounded-border-radius: $md,
+  $skeleton-loader-border-radius: $md,
+  $skeleton-loader-button-border-radius: $md,
+  $snackbar-border-radius: $md,
+  $tab-inset-radius: $md,
+  $toolbar-rounded-border-radius: $md,
+  $tooltip-border-radius: $md
+);

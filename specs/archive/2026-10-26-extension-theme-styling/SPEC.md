@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-theme-styling
 created: 2026-10-26
-closed: null
+closed: 2026-10-26
 touches: [desktop, extension-api, extension-sdk]
 depends-on: []
 supersedes: null
@@ -10,6 +10,8 @@ superseded-by: null
 ---
 
 # Стили тем расширений: скругления, шрифт и произвольный CSS
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -86,4 +88,18 @@ superseded-by: null
 
 ## Outcomes
 
-<Заполняется при закрытии.>
+Сделано всё по требованиям R1–R8.
+
+- Тема расширения получила `tokens` (скругления `radius-sm|md|lg|xl`, `font-family`) и `css`; окно держит `<style data-dolphy-theme>`, пока тема выбрана (`theme-styles.ts`). Скругления компонентов Vuetify идут через SASS-переменные (`vuetify-settings.scss`, зависимость `sass`), вид встроенных тем не изменился (e2e сравнивает 8/8/4/4 px).
+- Документация: `recipe-theme.md` (SDK) и «Темы» в `docs/design/extensions.md`.
+- Две темы shadcn (`theme-shadcn-light`, `theme-shadcn-dark`) лежат в репозитории каталога: PR dolphy-app/extensions#11, `minAppVersion` 0.8.0, ждут релиза приложения с этой фичей.
+
+Отличия от плана:
+
+- Шрифт Inter в темах shadcn лежит файлами `assets/fonts` и подключается строкой `@font-face` из кода `client` (`dolphy-ext://<id>/assets/…`): `url()` внутри `?inline`-таблицы сборка разрешает как файлы проекта, а встроенные `data:`-URI раздули `client.mjs` до 96 КиБ и вызвали предупреждение `CHECK-023`. Проверено: обе гарнитуры загружаются (`document.fonts`).
+- В рамках фичи исправлена акцентная карточка плана (`hero-*` темы расширения игнорировались) и обновлены устаревшие фоновые цвета встроенных тем в `themes.e2e.test.ts`.
+
+Осталось (отдельной работой, не в этой спеке):
+
+- Зашитые в стилях компонентов радиусы в пикселях и тени (список — в «Surprises & Discoveries»): перевести на `var(--dolphy-radius-*, <прежнее значение>)`.
+- Токены высоты контролов и плотности, если одинаковые приёмы повторятся в нескольких темах.
